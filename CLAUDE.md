@@ -25,7 +25,7 @@ A small library package (root) plus a demo (`example/main.go`). The README is th
 
 - `mask.go` — `Source` interface (`Filled(x, y) bool`; out-of-bounds must return false), `Mask`, `MaskAt`.
 - `grid.go` — `Grid`, a simple bool-grid `Source`.
-- `tileset.go` — `Tileset` slices a 4×4 sheet (tile `i` at column `i%4`, row `i/4`; sheet must be exactly `4*size` square). `Placeholder` generates sheets procedurally via bilinear interpolation of the four corner values; `Inset` pulls the edge inward (negative pushes it out); optional `Highlight`/`Shadow` shade up- and down-facing edges for a raised look (`Rock`). Shading uses only the fill amount and its vertical slope, and skips a tile's top and bottom pixel rows, because those are the only quantities neighbouring tiles share. Tile outer edges depend only on cells shared with neighbours, which keeps tiles seamless — preserve this property when changing generation.
+- `tileset.go` — `Tileset` slices a 4×4 sheet (tile `i` at column `i%4`, row `i/4`; a frame is `4*size` square; animated sheets put frames side by side). `Placeholder` generates sheets procedurally via bilinear interpolation of the four corner values; `Inset` pulls the edge inward (negative pushes it out); optional `Highlight`/`Shadow` shade up- and down-facing edges for a raised look (`Rock`). Shading uses only the fill amount and its vertical slope, and skips a tile's top and bottom pixel rows, because those are the only quantities neighbouring tiles share. Tile outer edges depend only on cells shared with neighbours, which keeps tiles seamless — preserve this property when changing generation.
 - `ripples.go` — `Ripples` generates an animated sheet of shore ripples from the same fill-amount field (`fillAt`), so ripple bands match across tile edges in every frame. Sheets may hold several frames side by side (`Tileset.Frames`/`TileAt`, `DrawOptions.Frame`).
 - `draw.go` — `Draw` renders one layer in *world pixels* (one cell = `Tileset.Size` px), iterating display tiles `MinX..MaxX+1` / `MinY..MaxY+1` so half tiles at the edges are covered; `opts.GeoM` is the camera. `Empty` tiles are skipped so layers stack.
 
@@ -33,4 +33,4 @@ A small library package (root) plus a demo (`example/main.go`). The README is th
 
 ## Assets
 
-`assets/dirt.png`, `assets/grass.png`: hand-drawn 64×64 sheets (16px tiles) in mask order. `assets/rock.png`, `assets/ripples.png`: the generated `Rock` and `DefaultRipples` placeholders, to be repainted. Apostle embeds copies of all three. `sheet.png` at the root is a sheet image not referenced by code.
+`assets/dirt.png`, `assets/grass.png`: hand-drawn 64×64 sheets (16px tiles) in mask order. `assets/rock.png`, `assets/ripples.png`: the generated `Rock` and `DefaultRipples` placeholders, to be repainted. Apostle embeds copies of all four. `sheet.png` at the root is a sheet image not referenced by code.
