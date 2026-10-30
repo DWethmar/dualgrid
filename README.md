@@ -111,13 +111,13 @@ A tileset can have **frames**: put several 4×4 blocks side by side, so an 8-fra
 Shore ripples use this. They are one more dual-grid layer, drawn **after the water and before the land**, with the *same* source as the land layer (in the example `AtLeast{w, Dirt}`). Each tile holds only the ripple lines on its water side and is transparent on the land side, which the land layer covers anyway. Tiles 0 (open water) and 15 (all land) are empty. Because the shore and the ripples come from the same mask, the ripples bend around every corner exactly like the coastline.
 
 ```go
-opts.Frame = ticks / 8 // a new frame every 8 ticks
+opts.Frame = ticks / 12 // a new frame every 12 ticks (200ms)
 dualgrid.Draw(screen, AtLeast{w, Dirt}, ripples, opts)
 opts.Frame = 0
 // ... then the dirt, grass and rock layers
 ```
 
-`dualgrid.DefaultRipples` generates a sheet: two light lines at a time that start at the shore, drift out about a third of a cell and fade. `go run ./example -template .` writes it as `ripples.png`. To draw your own, keep the frames' tile edges matching (as for any sheet), leave land and tiles 0 and 15 transparent, and make the last frame lead back into the first so the loop is seamless.
+`dualgrid.DefaultRipples` generates a sheet: two faint, blurred light bands at a time that start at the shore, drift out about a third of a cell and fade, over 16 frames. `Blur` sets how soft they are (0 is a crisp line), `Color.A` how strong, and `Frames` how smooth; how *slow* is up to how long you show each frame. `go run ./example -template .` writes it as `ripples.png`. To draw your own, keep the frames' tile edges matching (as for any sheet), leave land and tiles 0 and 15 transparent, and make the last frame lead back into the first so the loop is seamless.
 
 ## Drawing guide
 

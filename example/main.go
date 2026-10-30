@@ -111,7 +111,7 @@ var (
 )
 
 // rippleTicks is how long each ripple frame shows, in ticks (60 per second).
-const rippleTicks = 8
+const rippleTicks = 12
 
 type game struct {
 	world    World
