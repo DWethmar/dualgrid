@@ -9,11 +9,11 @@ go test ./...                                     # all tests
 go test -run TestMaskAtEveryMask .                # single test
 go vet ./...
 go run ./example                                  # interactive demo with generated placeholder tiles
-go run ./example -dirt assets/dirt.png -grass assets/grass.png  # demo with real art
-go run ./example -template <dir>                  # write dirt.png + grass.png placeholder sheets and exit
+go run ./example -dirt assets/dirt.png -grass assets/grass.png -rock assets/rock.png  # demo with real art
+go run ./example -template <dir>                  # write dirt.png, grass.png + rock.png placeholder sheets and exit
 ```
 
-Demo controls: **1/2/3** pick water/dirt/grass, left mouse paints, right mouse paints water, **G** toggles the overlay (white = world grid, yellow = display grid, numbers = tile masks).
+Demo controls: **1/2/3/4** pick water/dirt/grass/rock, left mouse paints, right mouse paints water, **G** toggles the overlay (white = world grid, yellow = display grid, numbers = tile masks).
 
 Module: `github.com/dwethmar/dualgrid`, Go 1.27, single dependency Ebitengine v2.
 
@@ -25,11 +25,11 @@ A small library package (root) plus a demo (`example/main.go`). The README is th
 
 - `mask.go` — `Source` interface (`Filled(x, y) bool`; out-of-bounds must return false), `Mask`, `MaskAt`.
 - `grid.go` — `Grid`, a simple bool-grid `Source`.
-- `tileset.go` — `Tileset` slices a 4×4 sheet (tile `i` at column `i%4`, row `i/4`; sheet must be exactly `4*size` square). `Placeholder` generates sheets procedurally via bilinear interpolation of the four corner values; `Inset` pulls the edge inward. Tile outer edges depend only on cells shared with neighbours, which keeps tiles seamless — preserve this property when changing generation.
+- `tileset.go` — `Tileset` slices a 4×4 sheet (tile `i` at column `i%4`, row `i/4`; sheet must be exactly `4*size` square). `Placeholder` generates sheets procedurally via bilinear interpolation of the four corner values; `Inset` pulls the edge inward (negative pushes it out); optional `Highlight`/`Shadow` shade up- and down-facing edges for a raised look (`Rock`). Shading uses only the fill amount and its vertical slope, and skips a tile's top and bottom pixel rows, because those are the only quantities neighbouring tiles share. Tile outer edges depend only on cells shared with neighbours, which keeps tiles seamless — preserve this property when changing generation.
 - `draw.go` — `Draw` renders one layer in *world pixels* (one cell = `Tileset.Size` px), iterating display tiles `MinX..MaxX+1` / `MinY..MaxY+1` so half tiles at the edges are covered; `opts.GeoM` is the camera. `Empty` tiles are skipped so layers stack.
 
-**Multiple terrains (demo, not library).** Each cell holds one `Terrain` ordered `Water < Dirt < Grass`. Water is a flat fill; each higher terrain is a separate dual-grid layer drawn lowest first, with source `AtLeast{W, T}` (`At(x,y) >= T`), not equality — otherwise layers would both retreat from a shared border and leave a gap. Grass uses a larger `Inset` than dirt so a dirt "beach" shows where grass meets water.
+**Multiple terrains (demo, not library).** Each cell holds one `Terrain` ordered `Water < Dirt < Grass < Rock`. Water is a flat fill; each higher terrain is a separate dual-grid layer drawn lowest first, with source `AtLeast{W, T}` (`At(x,y) >= T`), not equality — otherwise layers would both retreat from a shared border and leave a gap. Grass uses a larger `Inset` than dirt so a dirt "beach" shows where grass meets water.
 
 ## Assets
 
-`assets/dirt.png`, `assets/grass.png`: hand-drawn 64×64 sheets (16px tiles) in mask order. `sheet.png` at the root is a sheet image not referenced by code.
+`assets/dirt.png`, `assets/grass.png`: hand-drawn 64×64 sheets (16px tiles) in mask order. `assets/rock.png`: the generated `Rock` placeholder, to be repainted. Apostle embeds copies of all three. `sheet.png` at the root is a sheet image not referenced by code.
