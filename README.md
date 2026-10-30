@@ -144,7 +144,7 @@ One PNG of **64×64** pixels: 4×4 tiles of **16×16**. Tile number = mask, read
 3. **Edges: 3, 12, 5, 10** — a straight border through the middle of the tile.
 4. **Outer corners: 1, 2, 4, 8** — a small blob of grass in one corner.
 5. **Inner corners: 7, 11, 13, 14** — grass everywhere except one corner.
-6. **Diagonals: 6, 9** — two opposite corners. Decide whether they connect through the middle or stay two blobs.
+6. **Diagonals: 6, 9** — two opposite corners. Decide whether they connect through the middle or stay two blobs. For two blobs, don't draw them at all: copy your corner tiles on top of each other (6 = 4 + 2, 9 = 8 + 1). Then they always match your corners. Avoid filling the two quarters as solid squares: next to your rounded corners that reads as a hard, square pinch.
 
 ### Rules for seamless tiles
 
