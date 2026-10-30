@@ -47,6 +47,11 @@ type Placeholder struct {
 	// upper layer with a larger inset than the layer below leaves a strip of
 	// the lower layer visible along its edge (a beach between grass and water).
 	Inset float64
+
+	// Highlight and Shadow give a raised look, lit from above: a light band
+	// inside edges that face up, and a wide dark band inside edges that face
+	// down (the side of a boulder). Leave them zero for flat tiles.
+	Highlight, Shadow color.RGBA
 }
 
 // Grass is the default placeholder look.
@@ -55,8 +60,25 @@ var Grass = Placeholder{
 	Rim:  color.RGBA{0x2f, 0x6b, 0x2a, 0xff},
 }
 
-// rimWidth is the rim's thickness, in fill-amount units (see Sheet).
-const rimWidth = 0.12
+// Rock is a raised placeholder: grey boulders, lit from above. A negative
+// inset lets it spread a little past its cells, so a lone boulder fills its
+// cell instead of shrinking to a pebble.
+var Rock = Placeholder{
+	Inset:     -0.15,
+	Fill:      color.RGBA{0x8c, 0x8a, 0x92, 0xff},
+	Rim:       color.RGBA{0x34, 0x32, 0x3a, 0xff},
+	Highlight: color.RGBA{0xbc, 0xba, 0xc4, 0xff},
+	Shadow:    color.RGBA{0x5c, 0x5a, 0x64, 0xff},
+}
+
+// Band widths in fill-amount units (see Sheet), and how steeply an edge must
+// face up or down to be shaded.
+const (
+	rimWidth       = 0.12
+	shadowWidth    = 0.3
+	highlightWidth = 0.14
+	facing         = 0.3
+)
 
 // Tileset returns the generated tiles as a Tileset.
 func (p Placeholder) Tileset(size int) *Tileset {
@@ -76,7 +98,14 @@ func (p Placeholder) Tileset(size int) *Tileset {
 // filled, and those just above it form the rim. The outermost pixel rows and
 // columns sit exactly on the tile's edge, where the amount depends only on
 // the two cells that neighbouring tiles share, so tiles always line up.
+//
+// Shading looks at which way the edge faces: dv, how fast the fill amount
+// changes going down. dv is shared along left and right tile edges too, but
+// not along top and bottom ones, so the top and bottom pixel rows are never
+// shaded. Up- and down-facing edges run through the middle of a tile, so
+// their bands don't reach those rows anyway.
 func (p Placeholder) Sheet(size int) *image.RGBA {
+	raised := p.Highlight != (color.RGBA{}) || p.Shadow != (color.RGBA{})
 	img := image.NewRGBA(image.Rect(0, 0, SheetTiles*size, SheetTiles*size))
 	edge := 0.5 + p.Inset
 	pos := func(i int) float64 {
@@ -100,12 +129,22 @@ func (p Placeholder) Sheet(size int) *image.RGBA {
 			for px := range size {
 				u := pos(px)
 				f := tl*(1-u)*(1-v) + tr*u*(1-v) + bl*(1-u)*v + br*u*v
+				dv := (bl-tl)*(1-u) + (br-tr)*u
+				shade := raised && py > 0 && py < size-1
+				var c color.RGBA
 				switch {
-				case f >= edge+rimWidth:
-					img.SetRGBA(r.Min.X+px, r.Min.Y+py, p.Fill)
-				case f >= edge:
-					img.SetRGBA(r.Min.X+px, r.Min.Y+py, p.Rim)
+				case f < edge:
+					continue
+				case f < edge+rimWidth:
+					c = p.Rim
+				case shade && dv < -facing && f < edge+rimWidth+shadowWidth:
+					c = p.Shadow
+				case shade && dv > facing && f < edge+rimWidth+highlightWidth:
+					c = p.Highlight
+				default:
+					c = p.Fill
 				}
+				img.SetRGBA(r.Min.X+px, r.Min.Y+py, c)
 			}
 		}
 	}

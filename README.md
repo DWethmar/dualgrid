@@ -5,11 +5,11 @@ A small [Ebitengine](https://ebitengine.org/) package for drawing tile maps with
 ```sh
 go run ./example                                  # paint with generated placeholder tiles
 go run ./example -dirt dirt.png -grass grass.png  # paint with your own art (either flag alone works too)
-go run ./example -template .                      # write dirt.png + grass.png placeholder sheets as a starting point
+go run ./example -template .                      # write dirt.png, grass.png + rock.png placeholder sheets as a starting point
 go test ./...
 ```
 
-In the example: **1/2/3** pick water/dirt/grass, left mouse paints, right mouse paints water, **G** toggles the grid overlay.
+In the example: **1/2/3/4** pick water/dirt/grass/rock, left mouse paints, right mouse paints water, **G** toggles the grid overlay.
 
 ## How it works
 
@@ -100,6 +100,8 @@ What you get at each border:
 
 So you draw one sheet per terrain that has an edge, with transparent "empty" parts. A new terrain is one more sheet, not a set of tiles for every pair of terrains. The example does exactly this; its placeholder grass uses `Inset: 0.12` to leave the beach.
 
+Rock sits on top of grass as a fourth layer. Its placeholder (`dualgrid.Rock`) is *raised*: `Highlight` and `Shadow` colours add a light band inside edges facing up and a wide dark band inside edges facing down, so blobs read as boulders lit from above. A negative `Inset` lets rock spread a little past its cells, so a lone boulder fills its cell.
+
 The other common approach is a transition sheet for every *pair* of terrains (grass–dirt, grass–water, dirt–water). That gives more control per border, but the number of sheets grows fast and corners where three terrains meet need extra work.
 
 ## Drawing guide
@@ -133,7 +135,7 @@ One PNG of **64×64** pixels: 4×4 tiles of **16×16**. Tile number = mask, read
  (top)    corner   corner
 ```
 
-`go run ./example -template .` writes `dirt.png` and `grass.png` in exactly this layout — open them in your editor and paint over them.
+`go run ./example -template .` writes `dirt.png`, `grass.png` and `rock.png` in exactly this layout — open them in your editor and paint over them.
 
 ### Order to draw them
 

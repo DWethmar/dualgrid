@@ -1,11 +1,11 @@
-// Command example is a paint demo for the dualgrid package with three
-// terrains: water, dirt and grass.
+// Command example is a paint demo for the dualgrid package with four
+// terrains: water, dirt, grass and rock.
 //
 //	go run ./example                                  # generated placeholder tiles
-//	go run ./example -dirt dirt.png -grass grass.png  # your own 64x64 sheets of 16px tiles
+//	go run ./example -dirt dirt.png -grass grass.png  # your own 64x64 sheets of 16px tiles (also -rock)
 //	go run ./example -template DIR                    # write placeholder sheets to DIR and exit
 //
-// 1/2/3 pick water/dirt/grass, left mouse paints, right mouse paints water,
+// 1/2/3/4 pick water/dirt/grass/rock, left mouse paints, right mouse paints water,
 // G toggles the grid overlay.
 package main
 
@@ -44,9 +44,10 @@ const (
 	Water Terrain = iota
 	Dirt
 	Grass
+	Rock
 )
 
-var terrainNames = [...]string{"water", "dirt", "grass"}
+var terrainNames = [...]string{"water", "dirt", "grass", "rock"}
 
 func (t Terrain) String() string { return terrainNames[t] }
 
@@ -106,6 +107,7 @@ var (
 		p.Inset = 0.12
 		return p
 	}()
+	rockLook = dualgrid.Rock
 )
 
 type game struct {
@@ -119,9 +121,9 @@ type game struct {
 	ox, oy int
 }
 
-func newGame(dirt, grass *dualgrid.Tileset) *game {
+func newGame(dirt, grass, rock *dualgrid.Tileset) *game {
 	g := &game{
-		layers:   []layer{{Dirt, dirt}, {Grass, grass}},
+		layers:   []layer{{Dirt, dirt}, {Grass, grass}, {Rock, rock}},
 		brush:    Grass,
 		showGrid: true,
 		ox:       (screenW - worldW*cell) / 2,
@@ -153,6 +155,10 @@ func newGame(dirt, grass *dualgrid.Tileset) *game {
 		g.world.Set(13, y, Grass)
 	}
 	g.world.Set(14, 10, Grass) // grass straight against the lake
+	// Boulders: a lone one, a pair, and a rocky ridge.
+	for _, p := range [][2]int{{9, 7}, {3, 11}, {4, 11}, {18, 2}, {19, 2}, {20, 2}, {19, 3}, {20, 3}, {20, 4}} {
+		g.world.Set(p[0], p[1], Rock)
+	}
 	return g
 }
 
@@ -174,7 +180,7 @@ func (g *game) Update() error {
 	if inpututil.IsKeyJustPressed(ebiten.KeyG) {
 		g.showGrid = !g.showGrid
 	}
-	for i, k := range []ebiten.Key{ebiten.Key1, ebiten.Key2, ebiten.Key3} {
+	for i, k := range []ebiten.Key{ebiten.Key1, ebiten.Key2, ebiten.Key3, ebiten.Key4} {
 		if inpututil.IsKeyJustPressed(k) {
 			g.brush = Terrain(i)
 		}
@@ -216,7 +222,7 @@ func (g *game) Draw(screen *ebiten.Image) {
 	}
 
 	ebitenutil.DebugPrint(screen, fmt.Sprintf(
-		"1 water  2 dirt  3 grass  [brush: %s]   LMB paint  RMB water  G overlay\n"+
+		"1 water  2 dirt  3 grass  4 rock  [brush: %s]   LMB paint  RMB water  G overlay\n"+
 			"white = world grid   yellow = display grid   numbers = masks of the %s layer",
 		g.brush, g.overlayLayer().terrain))
 }
@@ -328,11 +334,12 @@ func loadTiles(path string, look dualgrid.Placeholder) (*dualgrid.Tileset, error
 func main() {
 	dirtPath := flag.String("dirt", "", "PNG sheet for dirt: 4x4 tiles of 16px (64x64)")
 	grassPath := flag.String("grass", "", "PNG sheet for grass: 4x4 tiles of 16px (64x64)")
-	templateDir := flag.String("template", "", "write dirt.png and grass.png placeholder sheets to this directory and exit")
+	rockPath := flag.String("rock", "", "PNG sheet for rock: 4x4 tiles of 16px (64x64)")
+	templateDir := flag.String("template", "", "write dirt.png, grass.png and rock.png placeholder sheets to this directory and exit")
 	flag.Parse()
 
 	if *templateDir != "" {
-		for name, look := range map[string]dualgrid.Placeholder{"dirt.png": dirtLook, "grass.png": grassLook} {
+		for name, look := range map[string]dualgrid.Placeholder{"dirt.png": dirtLook, "grass.png": grassLook, "rock.png": rockLook} {
 			path := filepath.Join(*templateDir, name)
 			if err := writePNG(path, look.Sheet(tileSize)); err != nil {
 				log.Fatal(err)
@@ -351,9 +358,14 @@ func main() {
 		log.Fatal(err)
 	}
 
+	rock, err := loadTiles(*rockPath, rockLook)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	ebiten.SetWindowSize(screenW, screenH)
 	ebiten.SetWindowTitle("dualgrid example")
-	if err := ebiten.RunGame(newGame(dirt, grass)); err != nil {
+	if err := ebiten.RunGame(newGame(dirt, grass, rock)); err != nil {
 		log.Fatal(err)
 	}
 }

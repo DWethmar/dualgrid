@@ -36,8 +36,11 @@ func opaque(img *image.RGBA, x, y int) bool {
 
 func TestPlaceholderSheet(t *testing.T) {
 	const s = 16
-	for _, inset := range []float64{0, 0.1, 0.25} {
-		p := Grass
+	for _, tc := range []struct {
+		base  Placeholder
+		inset float64
+	}{{Grass, 0}, {Grass, 0.1}, {Grass, 0.25}, {Rock, -0.15}, {Rock, 0}, {Rock, 0.1}} {
+		p, inset := tc.base, tc.inset
 		p.Inset = inset
 		img := p.Sheet(s)
 
