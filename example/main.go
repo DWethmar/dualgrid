@@ -2,7 +2,7 @@
 // terrains: water, dirt, grass and rock.
 //
 //	go run ./example                                  # generated placeholder tiles
-//	go run ./example -dirt dirt.png -grass grass.png  # your own 64x64 sheets of 16px tiles (also -rock)
+//	go run ./example -dirt dirt.png -grass grass.png  # your own 64x64 sheets of 16px tiles (also -rock, -ripples)
 //	go run ./example -template DIR                    # write placeholder sheets to DIR and exit
 //
 // 1/2/3/4 pick water/dirt/grass/rock, left mouse paints, right mouse paints water,
@@ -110,9 +110,13 @@ var (
 	rockLook = dualgrid.Rock
 )
 
+// rippleTicks is how long each ripple frame shows, in ticks (60 per second).
+const rippleTicks = 8
+
 type game struct {
 	world    World
-	layers   []layer // drawn in order, after the water
+	layers   []layer           // drawn in order, after the water
+	ripples  *dualgrid.Tileset // animated, between the water and the land
 	brush    Terrain
 	showGrid bool
 	ticks    int
@@ -121,9 +125,10 @@ type game struct {
 	ox, oy int
 }
 
-func newGame(dirt, grass, rock *dualgrid.Tileset) *game {
+func newGame(dirt, grass, rock, ripples *dualgrid.Tileset) *game {
 	g := &game{
 		layers:   []layer{{Dirt, dirt}, {Grass, grass}, {Rock, rock}},
+		ripples:  ripples,
 		brush:    Grass,
 		showGrid: true,
 		ox:       (screenW - worldW*cell) / 2,
@@ -204,10 +209,17 @@ func (g *game) Draw(screen *ebiten.Image) {
 	fillRect(screen, g.ox-half, g.oy-half, worldW*cell+cell, worldH*cell+cell, waterColor)
 	g.drawWaves(screen)
 
-	// Every other terrain is a dual-grid layer, lowest first.
 	opts := &dualgrid.DrawOptions{MaxX: worldW - 1, MaxY: worldH - 1}
 	opts.GeoM.Scale(scale, scale)
 	opts.GeoM.Translate(float64(g.ox), float64(g.oy))
+
+	// Shore ripples: the same "is it land?" mask as the dirt layer, so they
+	// follow the shoreline, but drawn under it and animated.
+	opts.Frame = g.ticks / rippleTicks
+	dualgrid.Draw(screen, AtLeast{&g.world, Dirt}, g.ripples, opts)
+	opts.Frame = 0
+
+	// Every other terrain is a dual-grid layer, lowest first.
 	for _, l := range g.layers {
 		dualgrid.Draw(screen, AtLeast{&g.world, l.terrain}, l.tiles, opts)
 	}
@@ -318,11 +330,11 @@ func writePNG(path string, img image.Image) error {
 	return f.Close()
 }
 
-// loadTiles loads a sheet from path, or generates placeholder tiles when
-// path is empty.
-func loadTiles(path string, look dualgrid.Placeholder) (*dualgrid.Tileset, error) {
+// loadTiles loads a sheet from path, or generates tiles with gen when path
+// is empty.
+func loadTiles(path string, gen func(size int) *dualgrid.Tileset) (*dualgrid.Tileset, error) {
 	if path == "" {
-		return look.Tileset(tileSize), nil
+		return gen(tileSize), nil
 	}
 	sheet, _, err := ebitenutil.NewImageFromFile(path)
 	if err != nil {
@@ -335,13 +347,20 @@ func main() {
 	dirtPath := flag.String("dirt", "", "PNG sheet for dirt: 4x4 tiles of 16px (64x64)")
 	grassPath := flag.String("grass", "", "PNG sheet for grass: 4x4 tiles of 16px (64x64)")
 	rockPath := flag.String("rock", "", "PNG sheet for rock: 4x4 tiles of 16px (64x64)")
-	templateDir := flag.String("template", "", "write dirt.png, grass.png and rock.png placeholder sheets to this directory and exit")
+	ripplesPath := flag.String("ripples", "", "PNG sheet of animated shore ripples: frames of 4x4 16px tiles side by side (Nx64 wide, 64 high)")
+	templateDir := flag.String("template", "", "write dirt.png, grass.png, rock.png and ripples.png placeholder sheets to this directory and exit")
 	flag.Parse()
 
 	if *templateDir != "" {
-		for name, look := range map[string]dualgrid.Placeholder{"dirt.png": dirtLook, "grass.png": grassLook, "rock.png": rockLook} {
+		sheets := map[string]image.Image{
+			"dirt.png":    dirtLook.Sheet(tileSize),
+			"grass.png":   grassLook.Sheet(tileSize),
+			"rock.png":    rockLook.Sheet(tileSize),
+			"ripples.png": dualgrid.DefaultRipples.Sheet(tileSize),
+		}
+		for name, img := range sheets {
 			path := filepath.Join(*templateDir, name)
-			if err := writePNG(path, look.Sheet(tileSize)); err != nil {
+			if err := writePNG(path, img); err != nil {
 				log.Fatal(err)
 			}
 			fmt.Println("wrote", path)
@@ -349,23 +368,26 @@ func main() {
 		return
 	}
 
-	dirt, err := loadTiles(*dirtPath, dirtLook)
-	if err != nil {
-		log.Fatal(err)
-	}
-	grass, err := loadTiles(*grassPath, grassLook)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	rock, err := loadTiles(*rockPath, rockLook)
-	if err != nil {
-		log.Fatal(err)
+	var tiles [4]*dualgrid.Tileset
+	for i, src := range []struct {
+		path string
+		gen  func(int) *dualgrid.Tileset
+	}{
+		{*dirtPath, dirtLook.Tileset},
+		{*grassPath, grassLook.Tileset},
+		{*rockPath, rockLook.Tileset},
+		{*ripplesPath, dualgrid.DefaultRipples.Tileset},
+	} {
+		ts, err := loadTiles(src.path, src.gen)
+		if err != nil {
+			log.Fatal(err)
+		}
+		tiles[i] = ts
 	}
 
 	ebiten.SetWindowSize(screenW, screenH)
 	ebiten.SetWindowTitle("dualgrid example")
-	if err := ebiten.RunGame(newGame(dirt, grass, rock)); err != nil {
+	if err := ebiten.RunGame(newGame(tiles[0], tiles[1], tiles[2], tiles[3])); err != nil {
 		log.Fatal(err)
 	}
 }

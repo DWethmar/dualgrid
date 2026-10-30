@@ -4,8 +4,8 @@ A small [Ebitengine](https://ebitengine.org/) package for drawing tile maps with
 
 ```sh
 go run ./example                                  # paint with generated placeholder tiles
-go run ./example -dirt dirt.png -grass grass.png  # paint with your own art (either flag alone works too)
-go run ./example -template .                      # write dirt.png, grass.png + rock.png placeholder sheets as a starting point
+go run ./example -dirt dirt.png -grass grass.png  # paint with your own art (any of -dirt -grass -rock -ripples)
+go run ./example -template .                      # write dirt, grass, rock + ripples placeholder sheets as a starting point
 go test ./...
 ```
 
@@ -103,6 +103,21 @@ So you draw one sheet per terrain that has an edge, with transparent "empty" par
 Rock sits on top of grass as a fourth layer. Its placeholder (`dualgrid.Rock`) is *raised*: `Highlight` and `Shadow` colours add a light band inside edges facing up and a wide dark band inside edges facing down, so blobs read as boulders lit from above. A negative `Inset` lets rock spread a little past its cells, so a lone boulder fills its cell.
 
 The other common approach is a transition sheet for every *pair* of terrains (grass–dirt, grass–water, dirt–water). That gives more control per border, but the number of sheets grows fast and corners where three terrains meet need extra work.
+
+## Animation: shore ripples
+
+A tileset can have **frames**: put several 4×4 blocks side by side, so an 8-frame sheet of 16px tiles is 512×64. `Tileset.Frames()` says how many there are, `Tileset.TileAt(mask, frame)` picks one (the frame wraps, so pass a running counter), and `DrawOptions.Frame` does the same for `Draw`.
+
+Shore ripples use this. They are one more dual-grid layer, drawn **after the water and before the land**, with the *same* source as the land layer (in the example `AtLeast{w, Dirt}`). Each tile holds only the ripple lines on its water side and is transparent on the land side, which the land layer covers anyway. Tiles 0 (open water) and 15 (all land) are empty. Because the shore and the ripples come from the same mask, the ripples bend around every corner exactly like the coastline.
+
+```go
+opts.Frame = ticks / 8 // a new frame every 8 ticks
+dualgrid.Draw(screen, AtLeast{w, Dirt}, ripples, opts)
+opts.Frame = 0
+// ... then the dirt, grass and rock layers
+```
+
+`dualgrid.DefaultRipples` generates a sheet: two light lines at a time that start at the shore, drift out about a third of a cell and fade. `go run ./example -template .` writes it as `ripples.png`. To draw your own, keep the frames' tile edges matching (as for any sheet), leave land and tiles 0 and 15 transparent, and make the last frame lead back into the first so the loop is seamless.
 
 ## Drawing guide
 

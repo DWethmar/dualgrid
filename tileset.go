@@ -11,30 +11,48 @@ import (
 // SheetTiles is the number of tiles per row and per column of a sheet.
 const SheetTiles = 4
 
-// Tileset holds the 16 tiles of one terrain, indexed by [Mask].
+// Tileset holds the 16 tiles of one terrain, indexed by [Mask], in one or
+// more animation frames.
 type Tileset struct {
-	Size  int // width and height of one tile, in pixels
-	tiles [16]*ebiten.Image
+	Size   int                 // width and height of one tile, in pixels
+	frames [][16]*ebiten.Image // frames[f][mask]
 }
 
 // NewTileset slices a sheet of 4×4 tiles of size×size pixels. Tile i is at
 // column i%4, row i/4, so the sheet reads 0..15 left to right, top to bottom.
+//
+// An animated sheet holds several such 4×4 blocks side by side, one per
+// frame, so it is 4·size high and a multiple of 4·size wide.
 func NewTileset(sheet *ebiten.Image, size int) (*Tileset, error) {
 	b := sheet.Bounds()
-	if err := checkSheet(b.Dx(), b.Dy(), size); err != nil {
+	n, err := sheetFrames(b.Dx(), b.Dy(), size)
+	if err != nil {
 		return nil, err
 	}
-	ts := &Tileset{Size: size}
-	for i := range ts.tiles {
-		r := tileRect(Mask(i), size).Add(b.Min)
-		ts.tiles[i] = sheet.SubImage(r).(*ebiten.Image)
+	ts := &Tileset{Size: size, frames: make([][16]*ebiten.Image, n)}
+	for f := range ts.frames {
+		origin := b.Min.Add(image.Pt(f*SheetTiles*size, 0))
+		for i := range 16 {
+			r := tileRect(Mask(i), size).Add(origin)
+			ts.frames[f][i] = sheet.SubImage(r).(*ebiten.Image)
+		}
 	}
 	return ts, nil
 }
 
-// Tile returns the tile for a mask.
+// Tile returns the tile for a mask, in the first frame.
 func (t *Tileset) Tile(m Mask) *ebiten.Image {
-	return t.tiles[m&Full]
+	return t.frames[0][m&Full]
+}
+
+// Frames is the number of animation frames; 1 for a still sheet.
+func (t *Tileset) Frames() int { return len(t.frames) }
+
+// TileAt returns the tile for a mask in a frame. Frames wrap around, so a
+// running counter can be passed straight in.
+func (t *Tileset) TileAt(m Mask, frame int) *ebiten.Image {
+	n := len(t.frames)
+	return t.frames[(frame%n+n)%n][m&Full]
 }
 
 // Placeholder describes generated tiles: rounded blobs of one color with a
@@ -108,28 +126,12 @@ func (p Placeholder) Sheet(size int) *image.RGBA {
 	raised := p.Highlight != (color.RGBA{}) || p.Shadow != (color.RGBA{})
 	img := image.NewRGBA(image.Rect(0, 0, SheetTiles*size, SheetTiles*size))
 	edge := 0.5 + p.Inset
-	pos := func(i int) float64 {
-		if size == 1 {
-			return 0.5
-		}
-		return float64(i) / float64(size-1)
-	}
 	for i := range 16 {
 		m := Mask(i)
 		r := tileRect(m, size)
-		corner := func(bit Mask) float64 {
-			if m&bit != 0 {
-				return 1
-			}
-			return 0
-		}
-		tl, tr, bl, br := corner(TL), corner(TR), corner(BL), corner(BR)
 		for py := range size {
-			v := pos(py)
 			for px := range size {
-				u := pos(px)
-				f := tl*(1-u)*(1-v) + tr*u*(1-v) + bl*(1-u)*v + br*u*v
-				dv := (bl-tl)*(1-u) + (br-tr)*u
+				f, dv := fillAt(m, px, py, size)
 				shade := raised && py > 0 && py < size-1
 				var c color.RGBA
 				switch {
@@ -151,6 +153,29 @@ func (p Placeholder) Sheet(size int) *image.RGBA {
 	return img
 }
 
+// fillAt is the fill amount at pixel (px, py) of mask m's tile: the four
+// corner cells (1 = filled) blended by distance, with the outermost pixels
+// exactly on the tile's edge. dv is how fast it changes going down.
+func fillAt(m Mask, px, py, size int) (f, dv float64) {
+	pos := func(i int) float64 {
+		if size == 1 {
+			return 0.5
+		}
+		return float64(i) / float64(size-1)
+	}
+	corner := func(bit Mask) float64 {
+		if m&bit != 0 {
+			return 1
+		}
+		return 0
+	}
+	tl, tr, bl, br := corner(TL), corner(TR), corner(BL), corner(BR)
+	u, v := pos(px), pos(py)
+	f = tl*(1-u)*(1-v) + tr*u*(1-v) + bl*(1-u)*v + br*u*v
+	dv = (bl-tl)*(1-u) + (br-tr)*u
+	return f, dv
+}
+
 // tileRect is where a mask's tile sits in a sheet whose top-left is (0,0).
 func tileRect(m Mask, size int) image.Rectangle {
 	x := int(m) % SheetTiles * size
@@ -158,13 +183,15 @@ func tileRect(m Mask, size int) image.Rectangle {
 	return image.Rect(x, y, x+size, y+size)
 }
 
-func checkSheet(w, h, size int) error {
+// sheetFrames checks a sheet's size and returns how many frames it holds.
+func sheetFrames(w, h, size int) (int, error) {
 	if size <= 0 {
-		return fmt.Errorf("dualgrid: tile size must be positive, got %d", size)
+		return 0, fmt.Errorf("dualgrid: tile size must be positive, got %d", size)
 	}
-	if w != SheetTiles*size || h != SheetTiles*size {
-		return fmt.Errorf("dualgrid: sheet is %dx%d, want %dx%d (4x4 tiles of %dpx)",
-			w, h, SheetTiles*size, SheetTiles*size, size)
+	block := SheetTiles * size
+	if h != block || w < block || w%block != 0 {
+		return 0, fmt.Errorf("dualgrid: sheet is %dx%d, want %d high and a multiple of %d wide (4x4 tiles of %dpx per frame)",
+			w, h, block, block, size)
 	}
-	return nil
+	return w / block, nil
 }

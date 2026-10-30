@@ -12,6 +12,10 @@ type DrawOptions struct {
 	// The world cells to cover, inclusive. Draw covers them completely,
 	// including the half tiles that stick out past their edges.
 	MinX, MinY, MaxX, MaxY int
+
+	// Frame picks the animation frame of an animated tileset (see
+	// Tileset.TileAt); it wraps, so a running counter works.
+	Frame int
 }
 
 // Draw draws one terrain layer. Display tile (x, y) is centered on the world
@@ -28,7 +32,7 @@ func Draw(dst *ebiten.Image, src Source, ts *Tileset, opts *DrawOptions) {
 			var op ebiten.DrawImageOptions
 			op.GeoM.Translate(float64(x*s-s/2), float64(y*s-s/2))
 			op.GeoM.Concat(opts.GeoM)
-			dst.DrawImage(ts.Tile(m), &op)
+			dst.DrawImage(ts.TileAt(m, opts.Frame), &op)
 		}
 	}
 }
